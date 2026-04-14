@@ -1,0 +1,668 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{adjustbox}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{pdflscape}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\geometry{left=0.45in,right=0.45in,top=0.60in,bottom=0.60in}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.22}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+{\Large University of Science, VNU-HCM\par}
+\vspace{1.0cm}
+{\Large CSC14003 - Introduction to Artificial Intelligence\par}
+\vspace{1.5cm}
+{\huge \textbf{Project 2 - Futoshiki Logic Solver}\par}
+\vspace{1.5cm}
+
+\begin{tabular}{ll}
+Course: & CSC14003 - Introduction to Artificial Intelligence \\
+Project: & Project 2 - Futoshiki Logic Solver \\
+Entry point: & \texttt{main.py} \\
+GUI framework: & Streamlit web application \\
+Date: & April 15, 2026 \\
+\end{tabular}
+
+\vfill
+
+\begin{minipage}{0.9\textwidth}
+\textbf{Team Information}\\
+Member 1 - Replace student ID - \texttt{replace1@email.com}\\
+Member 2 - Replace student ID - \texttt{replace2@email.com}\\
+Member 3 - Replace student ID - \texttt{replace3@email.com}\\
+\end{minipage}
+
+\vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Introduction to Futoshiki}
+Futoshiki is a logic puzzle played on an \(N \times N\) grid. Each row and each column must contain every number from \(1\) to \(N\) exactly once, and adjacent cells connected by inequality signs must satisfy those signs. Some cells are given at the start and must stay unchanged. Compared with Sudoku, Futoshiki is smaller in structure but richer in explicit ordering constraints, so it is a good fit for first-order logic, forward chaining, backward chaining, and search-based solving.
+
+This project implements the required solvers for the CSC14003 logic assignment: ground knowledge-base generation, CNF conversion, forward chaining, backward chaining with SLD resolution, A* search, brute-force search, backtracking with CSP heuristics, benchmark scripts, charts, and a simple GUI for demonstration.
+
+\section{Project Planning and Task Distribution}
+\subsection{Work Packages}
+The work was divided into three balanced packages so that each member carried one implementation-heavy part, one verification/report part, and one integration part.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{p{0.17\textwidth} p{0.12\textwidth} Y}
+\toprule
+Member & Share & Assigned work \\
+\midrule
+Member 1 & 33.3\% & Input parser, output formatter, validator, brute-force solver, backtracking solver, bundled input/output checking, and unit tests for parsing/validation/CSP search. \\
+Member 2 & 33.3\% & FOL formalization, ground KB generator, CNF pipeline, forward chaining engine, backward chaining engine, and report sections on logic formalization, CNF derivation, and inference algorithms. \\
+Member 3 & 33.3\% & A* solver, heuristic analysis, benchmark automation, chart generation, GUI integration, README cleanup, demo preparation, and final repository packaging. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Detailed Task Table}
+\begin{center}
+\begin{tabularx}{\textwidth}{p{0.20\textwidth} Y Y Y}
+\toprule
+Task group & Member 1 & Member 2 & Member 3 \\
+\midrule
+Core coding & Parser, formatter, validator, brute-force, backtracking & Ground KB, CNF, forward chaining, backward chaining & A*, UI entry flow, benchmark scripts \\
+Verification & Parser/validator tests, output checking & Logic/CNF tests, contradiction checks & Benchmark reruns, chart validation, UI smoke checks \\
+Documentation & Input-output format description & FOL axioms, CNF derivations, inference pseudocode & Heuristic discussion, experiment section, packaging notes \\
+Integration & CLI/output consistency & Logic solver integration with report claims & Root \texttt{main.py}, README, figures, final runbook \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The division above is intentionally even: each member owns one main subsystem, one verification track, and one documentation/integration track.
+
+\section{Problem Formulation}
+\subsection{Puzzle Definition}
+An \(N \times N\) Futoshiki puzzle contains:
+\begin{itemize}
+\item a grid of cells \((i,j)\), with \(1 \le i,j \le N\);
+\item given clues, where some cells are pre-filled with a value in \(\{1,\dots,N\}\);
+\item horizontal inequality symbols between \((i,j)\) and \((i,j+1)\);
+\item vertical inequality symbols between \((i,j)\) and \((i+1,j)\).
+\end{itemize}
+
+A valid solution must satisfy all of the following:
+\begin{enumerate}[label=\arabic*.]
+\item each row is a permutation of \(1,\dots,N\);
+\item each column is a permutation of \(1,\dots,N\);
+\item each horizontal and vertical inequality is true;
+\item each given clue is preserved.
+\end{enumerate}
+
+\subsection{Search Formulation}
+Following the course material on problem solving by search, the A* formulation used in this repository is:
+\begin{itemize}
+\item \textbf{State}: a partial assignment represented as a domain map after propagation, not just a raw grid.
+\item \textbf{Initial state}: the puzzle with given clues and initial domains \(\{1,\dots,N\}\) for empty cells, then reduced by AC-3.
+\item \textbf{Action}: choose one ambiguous cell and assign one legal value from its current domain.
+\item \textbf{Result}: the new domain state after the assignment, forward checking, and AC-3.
+\item \textbf{Goal test}: every cell has a singleton domain and the resulting grid passes validation.
+\item \textbf{Path cost}: the number of branching decisions made so far.
+\end{itemize}
+
+\subsection{CSP Formulation}
+Futoshiki is also a CSP:
+\begin{itemize}
+\item \textbf{Variables}: one variable per cell.
+\item \textbf{Domains}: \(\{1,\dots,N\}\) initially, or a pruned subset after propagation.
+\item \textbf{Constraints}: row all-different, column all-different, given clues, and horizontal/vertical inequalities.
+\item \textbf{Constraint graph}: nodes are cells, edges connect row peers, column peers, and inequality neighbors.
+\end{itemize}
+
+\section{FOL Formalization}
+\subsection{Vocabulary}
+The report follows the project PDF vocabulary:
+\begin{align*}
+&Val(i,j,v) &&\text{: cell }(i,j)\text{ has value }v\\
+&Given(i,j,v) &&\text{: the puzzle gives value }v\text{ at }(i,j)\\
+&LessH(i,j) &&\text{: }(i,j) < (i,j+1)\\
+&GreaterH(i,j) &&\text{: }(i,j) > (i,j+1)\\
+&LessV(i,j) &&\text{: }(i,j) < (i+1,j)\\
+&GreaterV(i,j) &&\text{: }(i,j) > (i+1,j)\\
+&Less(v_1,v_2) &&\text{: arithmetic background fact }v_1 < v_2
+\end{align*}
+
+The implementation also uses auxiliary predicates for finite-domain inference:
+\[
+Possible(i,j,v), \quad NotVal(i,j,v), \quad Assigned(i,j).
+\]
+
+\subsection{Core Axioms}
+Let the index and value domain be \(\{1,\dots,N\}\).
+
+\paragraph{A1. Every cell has at least one value.}
+\[
+\forall i \forall j \exists v \, Val(i,j,v)
+\]
+
+\paragraph{A2. Every cell has at most one value.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(Val(i,j,v_1) \land Val(i,j,v_2)\bigr) \Rightarrow (v_1 = v_2)
+\]
+
+\paragraph{A3. Row uniqueness.}
+\[
+\forall i \forall j_1 \forall j_2 \forall v \;
+\bigl(Val(i,j_1,v) \land Val(i,j_2,v) \land j_1 \ne j_2\bigr) \Rightarrow \bot
+\]
+
+\paragraph{A4. Column uniqueness.}
+\[
+\forall j \forall i_1 \forall i_2 \forall v \;
+\bigl(Val(i_1,j,v) \land Val(i_2,j,v) \land i_1 \ne i_2\bigr) \Rightarrow \bot
+\]
+
+\paragraph{A5. Given clues are enforced.}
+\[
+\forall i \forall j \forall v \; Given(i,j,v) \Rightarrow Val(i,j,v)
+\]
+
+\paragraph{A6. Horizontal less-than.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(LessH(i,j) \land Val(i,j,v_1) \land Val(i,j+1,v_2)\bigr) \Rightarrow Less(v_1,v_2)
+\]
+
+\paragraph{A7. Horizontal greater-than.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(GreaterH(i,j) \land Val(i,j,v_1) \land Val(i,j+1,v_2)\bigr) \Rightarrow Less(v_2,v_1)
+\]
+
+\paragraph{A8. Vertical less-than.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(LessV(i,j) \land Val(i,j,v_1) \land Val(i+1,j,v_2)\bigr) \Rightarrow Less(v_1,v_2)
+\]
+
+\paragraph{A9. Vertical greater-than.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(GreaterV(i,j) \land Val(i,j,v_1) \land Val(i+1,j,v_2)\bigr) \Rightarrow Less(v_2,v_1)
+\]
+
+\paragraph{A10. Domain restriction and background order.}
+Only values in \(\{1,\dots,N\}\) are grounded. The implementation explicitly generates the background facts
+\[
+Less(a,b) \quad \text{for all } 1 \le a < b \le N.
+\]
+This finite grounding plays the role of the domain restriction/completeness axiom in the code.
+
+\section{CNF Derivation for Three Non-trivial Axioms}
+\subsection{Axiom 1: Every Cell Has At Least One Value}
+Start from:
+\[
+\forall i \forall j \exists v \, Val(i,j,v)
+\]
+
+\paragraph{Step 1: Standardize variables.}
+\[
+\forall i_0 \forall j_1 \exists v_2 \, Val(i_0,j_1,v_2)
+\]
+
+\paragraph{Step 2: Skolemization.}
+The existential variable depends on the universally quantified variables \(i_0\) and \(j_1\), so it becomes a Skolem function, not a constant:
+\[
+\forall i_0 \forall j_1 \, Val(i_0,j_1,Sk_0(i_0,j_1))
+\]
+
+\paragraph{Step 3: Drop universal quantifiers.}
+\[
+Val(i_0,j_1,Sk_0(i_0,j_1))
+\]
+
+\paragraph{Step 4: Finite grounding used in the implementation.}
+Because the actual puzzle domain is finite and known, the code replaces the existential witness by explicit disjunction over \(1,\dots,N\):
+\[
+Val(i,j,1) \lor Val(i,j,2) \lor \cdots \lor Val(i,j,N)
+\]
+For a \(4 \times 4\) cell, this becomes:
+\[
+Val(i,j,1) \lor Val(i,j,2) \lor Val(i,j,3) \lor Val(i,j,4)
+\]
+
+\subsection{Axiom 3: Row Uniqueness}
+Start from:
+\[
+\forall i \forall j_1 \forall j_2 \forall v \;
+\bigl(Val(i,j_1,v) \land Val(i,j_2,v) \land j_1 \ne j_2\bigr) \Rightarrow \bot
+\]
+
+\paragraph{Step 1: Remove implication.}
+\[
+\forall i \forall j_1 \forall j_2 \forall v \;
+\neg\bigl(Val(i,j_1,v) \land Val(i,j_2,v) \land j_1 \ne j_2\bigr)
+\]
+
+\paragraph{Step 2: Push negation inward.}
+\[
+\forall i \forall j_1 \forall j_2 \forall v \;
+\bigl(\neg Val(i,j_1,v) \lor \neg Val(i,j_2,v) \lor j_1 = j_2\bigr)
+\]
+
+\paragraph{Step 3: Ground only the meaningful case \(j_1 \ne j_2\).}
+For distinct columns, the equality literal is false and disappears. The grounded clause is:
+\[
+\neg Val(i,j_1,v) \lor \neg Val(i,j_2,v)
+\]
+
+\paragraph{Example.}
+For row \(1\), columns \(1\) and \(3\), value \(2\):
+\[
+\neg Val(1,1,2) \lor \neg Val(1,3,2)
+\]
+
+\subsection{Axiom 6: Horizontal Less-than}
+Start from:
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(LessH(i,j) \land Val(i,j,v_1) \land Val(i,j+1,v_2)\bigr) \Rightarrow Less(v_1,v_2)
+\]
+
+\paragraph{Step 1: Remove implication.}
+\[
+\forall i \forall j \forall v_1 \forall v_2 \;
+\bigl(\neg LessH(i,j) \lor \neg Val(i,j,v_1) \lor \neg Val(i,j+1,v_2) \lor Less(v_1,v_2)\bigr)
+\]
+
+\paragraph{Step 2: CNF form.}
+This is already a single CNF clause.
+
+\paragraph{Step 3: Ground and simplify using extensional order facts.}
+Suppose the puzzle contains \(LessH(1,1)\). For the invalid value pair \((v_1,v_2)=(4,2)\), the grounded clause is:
+\[
+\neg LessH(1,1) \lor \neg Val(1,1,4) \lor \neg Val(1,2,2) \lor Less(4,2)
+\]
+Since \(LessH(1,1)\) is true and \(Less(4,2)\) is false, the clause reduces to:
+\[
+\neg Val(1,1,4) \lor \neg Val(1,2,2)
+\]
+This is exactly the kind of forbidden-pair clause that appears in the direct propositional encoding.
+
+\section{Algorithms}
+\subsection{Ground Knowledge Base and CNF Generation}
+The repository contains two related but separate representations:
+\begin{enumerate}[label=\arabic*.]
+\item a grounded Horn knowledge base for forward and backward chaining;
+\item a direct propositional CNF encoding for verification.
+\end{enumerate}
+
+This separation is deliberate. Horn inference is used for the required forward/backward chaining tasks, while CNF is used to verify final solutions against the propositionalized puzzle constraints.
+
+\subsection{Forward Chaining}
+The forward chaining engine is agenda-based and implemented from scratch over ground Horn rules. Facts are inserted into an agenda; whenever all premises of a rule are known, its head is derived and pushed back into the agenda.
+
+\begin{algorithm}[H]
+\caption{Forward Chaining on a Ground Horn KB}
+\begin{algorithmic}[1]
+\State \(facts \gets\) initial facts
+\State \(agenda \gets\) queue of all initial facts
+\While{\(agenda\) not empty}
+    \State \(fact \gets\) pop from \(agenda\)
+    \For{each rule whose body contains \(fact\)}
+        \If{all body atoms of the rule are in \(facts\)}
+            \State derive the head atom
+            \If{the head is new}
+                \State add the head to \(facts\) and \(agenda\)
+            \EndIf
+        \EndIf
+    \EndFor
+\EndWhile
+\State \Return \(facts\)
+\end{algorithmic}
+\end{algorithm}
+
+In this project, the Horn KB derives \(Val\), \(NotVal\), \(Possible\), and contradiction atoms from givens, row/column uniqueness, singleton domains, and inequality restrictions.
+
+\subsection{Backward Chaining with SLD Resolution}
+The backward chaining engine uses first-order terms, substitutions, unification, and depth-first SLD-style goal reduction. It is not a renamed CSP solver. The query engine really proves goals by matching facts and Horn-rule heads, then recursively proving the body.
+
+\begin{algorithm}[H]
+\caption{Backward Chaining / SLD Resolution}
+\begin{algorithmic}[1]
+\Function{Prove}{goals, substitution}
+    \If{goals is empty}
+        \State \Return the current substitution
+    \EndIf
+    \State \(g \gets\) first goal after applying the current substitution
+    \For{each fact or rule head that unifies with \(g\)}
+        \State compute the most general unifier \(\theta\)
+        \If{unification succeeds}
+            \State replace \(g\) by the rule body (or nothing for a fact)
+            \State recurse on the new goal list under the extended substitution
+        \EndIf
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+To keep the backward solver honest and still practical, the repository first runs propagation, then builds a compact Horn snapshot:
+\begin{itemize}
+\item \(Given(i,j,v)\), \(Possible(i,j,v)\), and \(NotVal(i,j,v)\) are stored as facts;
+\item \(Val(i,j,v)\) is proved by rules such as \(Given(i,j,v) \Rightarrow Val(i,j,v)\) and the singleton-domain rule.
+\end{itemize}
+This matters academically: the current code no longer reads solved singleton values directly as \texttt{Val} facts during backward chaining.
+
+\subsection{Backtracking}
+The CSP solver is classical backtracking search with MRV, degree heuristic, forward checking, and AC-3. It is the cleanest complete reference solver in the repository.
+
+\begin{algorithm}[H]
+\caption{Backtracking with Propagation}
+\begin{algorithmic}[1]
+\Function{Search}{domains}
+    \If{all domains are singleton}
+        \State \Return solution
+    \EndIf
+    \State choose an unassigned cell by MRV, break ties by degree
+    \For{each value in the chosen domain}
+        \State assign the value
+        \State run forward checking and AC-3
+        \If{no contradiction}
+            \State recurse
+        \EndIf
+    \EndFor
+    \State \Return failure
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{A* Search}
+The A* solver uses the search formulation from Section 3.
+
+\begin{algorithm}[H]
+\caption{A* on Propagated Domain States}
+\begin{algorithmic}[1]
+\State initialize the open set with the propagated start state
+\While{open set not empty}
+    \State pop the state with minimum \(f(n)=g(n)+h(n)\)
+    \If{all domains are singleton}
+        \State \Return solution
+    \EndIf
+    \State pick one ambiguous cell
+    \For{each legal value of that cell}
+        \State assign the value, propagate, and compute \(g'\), \(h'\), \(f'\)
+        \State push the new state if it improves the best known path cost
+    \EndFor
+\EndWhile
+\State \Return failure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Heuristic Design and Admissibility}
+Three heuristics were tested:
+\begin{itemize}
+\item \(h_0(s)=0\);
+\item \(h_{weak}(s)=1\) if any ambiguity remains, else \(0\);
+\item \(h_{main}(s)\): the number of ambiguous connected components after propagation.
+\end{itemize}
+
+\paragraph{Why \(h_{main}\) is admissible.}
+The proof follows the state definition used by the solver.
+\begin{enumerate}[label=\arabic*.]
+\item Before evaluating the heuristic, the state is reduced by AC-3 to a fixed point.
+\item Each remaining ambiguous connected component contains at least one cell with a non-singleton domain.
+\item One action assigns one cell.
+\item Two disconnected components in the active binary-constraint graph cannot resolve each other through propagation.
+\item Therefore each ambiguous component needs at least one future branching decision.
+\end{enumerate}
+So \(h_{main}(s)\) is a lower bound on the remaining path cost measured in branching decisions.
+
+\section{Experimental Setup}
+\subsection{Dataset}
+The benchmark uses ten bundled inputs, satisfying the project requirement for sizes \(4\times4\), \(5\times5\), \(6\times6\), \(7\times7\), and \(9\times9\).
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Input & Size & Givens & Horizontal signs & Vertical signs \\
+\midrule
+input-01.txt & 4 & 8  & 12 & 12 \\
+input-02.txt & 4 & 6  & 12 & 12 \\
+input-03.txt & 5 & 10 & 20 & 20 \\
+input-04.txt & 5 & 8  & 20 & 20 \\
+input-05.txt & 6 & 14 & 30 & 30 \\
+input-06.txt & 6 & 12 & 30 & 30 \\
+input-07.txt & 7 & 18 & 42 & 42 \\
+input-08.txt & 7 & 16 & 42 & 42 \\
+input-09.txt & 9 & 28 & 72 & 72 \\
+input-10.txt & 9 & 24 & 72 & 72 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Execution}
+All benchmark data in this report was generated by:
+\begin{verbatim}
+python -m futoshiki.cli benchmark --inputs inputs --out reports/benchmark_results.csv
+\end{verbatim}
+
+The benchmark records:
+\begin{itemize}
+\item runtime in milliseconds;
+\item nodes expanded;
+\item rule firings or backward-chaining goal resolutions;
+\item a memory proxy.
+\end{itemize}
+
+No operating-system memory sampler was used. The memory proxy is the maximum among:
+\begin{itemize}
+\item \texttt{peak\_frontier} for search depth/frontier growth;
+\item \texttt{peak\_open\_set} for A*;
+\item \texttt{peak\_domain\_size\_sum} for the propagated-domain representation.
+\end{itemize}
+
+\section{Results}
+\subsection{Summary Table}
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+Solver & Avg runtime & Max runtime & Avg nodes & Avg inference & Avg memory proxy \\
+ & (ms) & (ms) & expanded & count & \\
+\midrule
+bruteforce     & 0.205   & 0.449   & 27.0 & 0.0    & 28.0 \\
+backtracking   & 4.555   & 13.751  & 0.0  & 0.0    & 209.0 \\
+astar-h0       & 4.647   & 14.098  & 1.0  & 0.0    & 41.4 \\
+astar-main     & 4.947   & 16.053  & 1.0  & 0.0    & 41.4 \\
+logic-forward  & 321.834 & 985.941 & 0.0  & 1441.8 & 41.4 \\
+logic-backward & 676.373 & 2623.101& 0.0  & 1528.0 & 41.4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Runtime per Input}
+\begin{center}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Input & brute & backtrack & A*-h0 & A*-main & logic-FC & logic-BC \\
+\midrule
+input-01 & 0.061 & 0.540 & 0.469 & 0.550 & 39.320 & 15.673 \\
+input-02 & 0.066 & 0.506 & 0.497 & 0.555 & 23.655 & 15.428 \\
+input-03 & 0.102 & 1.173 & 1.228 & 1.257 & 97.193 & 55.148 \\
+input-04 & 0.113 & 1.229 & 1.390 & 1.352 & 85.392 & 86.329 \\
+input-05 & 0.145 & 2.904 & 2.490 & 2.812 & 195.444 & 207.426 \\
+input-06 & 0.161 & 2.808 & 3.048 & 3.409 & 156.754 & 190.143 \\
+input-07 & 0.214 & 4.568 & 4.886 & 4.911 & 346.406 & 473.146 \\
+input-08 & 0.307 & 5.092 & 4.870 & 5.112 & 325.451 & 499.764 \\
+input-09 & 0.435 & 12.978 & 13.498 & 13.461 & 962.785 & 2597.574 \\
+input-10 & 0.449 & 13.751 & 14.098 & 16.053 & 985.941 & 2623.101 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Nodes Expanded and Inference Counts}
+For the current ten-input dataset:
+\begin{itemize}
+\item brute-force expands between 8 and 57 nodes, depending on puzzle size;
+\item backtracking expands 0 search nodes after initial propagation because AC-3 already forces singleton domains on these inputs;
+\item both A* variants expand exactly 1 node per instance for the same reason;
+\item forward chaining fires between 314 and 3561 rules;
+\item backward chaining resolves between 216 and 4311 goals.
+\end{itemize}
+
+\subsection{Charts}
+The repository now generates charts directly from the benchmark CSV into \texttt{reports/figures/}. In Overleaf, upload the \texttt{figures/} folder and keep the filenames unchanged.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{figures/runtime_avg_by_solver.png}
+\caption{Average runtime by solver.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/runtime_by_input.png}
+\caption{Runtime by input.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{figures/nodes_by_solver.png}
+\caption{Average nodes expanded by solver.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{figures/inference_by_solver.png}
+\caption{Average rule firings / goals resolved.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{figures/astar_h0_vs_main_runtime.png}
+\caption{A* heuristic comparison on the ten required inputs.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/puzzle_scale_by_input.png}
+\caption{Puzzle scale by input size.}
+\end{figure}
+
+\section{Comparative Analysis}
+\subsection{What the Results Actually Show}
+The benchmark leads to four main observations.
+
+\paragraph{1. The ten bundled inputs are propagation-friendly.}
+Backtracking expands zero search nodes and A* expands only one node on every input. This means the dataset is strongly constrained: the combination of givens, row/column uniqueness, and inequality propagation is already enough to force each solution before deep search starts.
+
+\paragraph{2. The A* heuristic is admissible, but its advantage is not visible on this dataset.}
+The project requirement asks for an admissible heuristic, not a guaranteed speedup on every benchmark. Here, \(h_{main}\) remains correct as a lower bound, but it is usually not better than \(h_0\) in practice because AC-3 has already collapsed the search space. The runtime data is mixed: \texttt{astar-main} is slightly better on a few inputs and slightly worse on others.
+
+\paragraph{3. The logic engines are now more academically honest than the earlier repository state.}
+Forward chaining remains agenda-based Horn inference. Backward chaining now proves \texttt{Val(i,j,?)} through snapshot Horn rules instead of reading solved singleton values directly as \texttt{Val} facts. This makes \texttt{logic-backward} slower, but the behavior is closer to the project specification.
+
+\paragraph{4. Brute-force is fast only because the benchmark set is easy for it.}
+Although brute-force is the fastest solver in this benchmark, that result should not be over-interpreted. The inputs are structured and heavily constrained. On harder Futoshiki instances, brute-force would scale poorly.
+
+\subsection{Preferred Use of Each Method}
+\begin{itemize}
+\item \textbf{Brute-force}: only as a naive baseline.
+\item \textbf{Backtracking}: best complete reference CSP solver in this repository.
+\item \textbf{A*}: valid search formulation with a correct heuristic argument, but the current benchmark does not strongly separate it from propagation-heavy CSP search.
+\item \textbf{Forward chaining}: good demonstration of ground Horn inference; expensive because the rule base is large.
+\item \textbf{Backward chaining}: good demonstration of SLD-style querying; now academically cleaner but slower than forward chaining on large inputs.
+\end{itemize}
+
+\section{GUI and Demonstration Support}
+The repository includes a Streamlit GUI with:
+\begin{itemize}
+\item bundled input selection and text editing;
+\item board visualization with horizontal and vertical inequality markers;
+\item solver execution and trace logs;
+\item benchmark view;
+\item backward-chaining query panel for \texttt{Val(i,j,?)}.
+\end{itemize}
+
+This satisfies the optional GUI bonus direction in the project PDF.
+
+\section{Self-evaluation Against the Rubric}
+\begin{center}
+\begin{tabular}{p{0.37\linewidth} p{0.16\linewidth} p{0.37\linewidth}}
+\toprule
+Criterion & Status & Notes \\
+\midrule
+FOL formalization and CNF derivation & Strong & Full axiom list included; three axioms derived step-by-step; Skolem-function dependency stated correctly. \\
+Automatic KB generation & Strong & Ground Horn KB and direct CNF encoder both implemented for arbitrary \(N\). \\
+Forward chaining & Strong & Agenda-based inference from scratch; no hidden SAT/CSP solver. \\
+Backward chaining & Stronger than before & Real SLD-style engine with unification; \texttt{Val} query now goes through rules in the snapshot program. \\
+A* search and heuristic & Acceptable & Proper state, action, \(g\), \(h\), open set, and admissibility argument; empirical advantage is limited on the required dataset. \\
+Comparison algorithms & Strong & Brute-force and CSP backtracking are both implemented and benchmarked. \\
+Report and experiments & Stronger than before & Tables, charts, benchmark command, and Overleaf source now align with the code and the measured data. \\
+GUI bonus & Present & Streamlit interface available for demo. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Demo Video Placeholders}
+Replace the placeholders below with public links before final submission.
+
+\begin{itemize}
+\item Case 1 (4x4): \texttt{[Insert public URL]}
+\item Case 2 (6x6): \texttt{[Insert public URL]}
+\item Case 3 (9x9): \texttt{[Insert public URL]}
+\end{itemize}
+
+\section{Limitations}
+\begin{enumerate}[label=\arabic*.]
+\item The A* comparison remains academically valid but empirically weak because the ten required inputs are already easy for propagation. The report states this directly instead of exaggerating the heuristic.
+\item Memory is reported as a proxy, not as operating-system RSS in MB.
+\item The logic engines solve the current ten inputs without fallback, but that should not be generalized to every harder Futoshiki instance.
+\item The direct CNF encoder is used for verification, not as the primary solver, in order to keep the forward-chaining, backward-chaining, and search requirements honest.
+\item The task-distribution section still needs the real team names, IDs, and percentages from the actual group.
+\end{enumerate}
+
+\section{References}
+\begin{thebibliography}{9}
+\bibitem{project2}
+CSC14003, \emph{Project 2. Logic -- Futoshiki Puzzles}, course project PDF in the repository's \texttt{knowledge/} folder.
+
+\bibitem{lec1}
+CSC14003 Lecture 01, \emph{Introduction to Artificial Intelligence}.
+
+\bibitem{search1}
+CSC14003 Lecture 02 Part 1, \emph{Problem Solving by Search -- Search Problem Formulation}.
+
+\bibitem{search2}
+CSC14003 Lecture 02 Part 2, \emph{Problem Solving by Search -- Global Search Strategies}.
+
+\bibitem{search4}
+CSC14003 Lecture 02 Part 4, \emph{Problem Solving by Search -- Heuristic Functions}.
+
+\bibitem{csp}
+CSC14003 Lecture 04, \emph{Constraint Satisfaction Problems}.
+
+\bibitem{pl}
+CSC14003 Lecture 05 Part 1, \emph{Knowledge and Reasoning -- Propositional Inference}.
+
+\bibitem{fol}
+CSC14003 Lecture 05 Part 2, \emph{Knowledge and Reasoning -- First-order Inference}.
+\end{thebibliography}
+
+\end{document}
