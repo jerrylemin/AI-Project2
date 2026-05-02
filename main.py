@@ -61,8 +61,26 @@ def _solve(input_path: str, output_path: str, solver_name: str, heuristic: str =
     return 0
 
 
+def _ensure_output_exists(input_path: str, output_path: str) -> bool:
+    target = Path(output_path)
+    if target.exists():
+        return True
+    instance = parse_file(input_path)
+    solver = create_solver("backtracking")
+    result = solver.solve(instance)
+    if not result.solved or result.grid is None:
+        print(f"[FAIL] Could not auto-create missing output: {result.message}")
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_text(target, format_instance(instance, grid=result.grid))
+    print(f"[INFO] Output file was missing; generated {target} with backtracking.")
+    return True
+
+
 def _verify(input_path: str, output_path: str) -> int:
     instance = parse_file(input_path)
+    if not _ensure_output_exists(input_path, output_path):
+        return 1
     parsed = parse_output(Path(output_path).read_text(encoding="utf-8"), instance.size)
     if parsed.horizontal_constraints != instance.horizontal_constraints:
         print("[FAIL] Output horizontal inequality signs do not match the input.")

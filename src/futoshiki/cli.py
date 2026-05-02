@@ -67,6 +67,22 @@ def solve_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def ensure_output_exists(input_path: str, output_path: str) -> bool:
+    target = Path(output_path)
+    if target.exists():
+        return True
+    instance = parse_file(input_path)
+    solver = create_solver("backtracking")
+    result = solver.solve(instance)
+    if not result.solved or result.grid is None:
+        print(f"[FAIL] Could not auto-create missing output: {result.message}")
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_text(target, format_instance(instance, grid=result.grid))
+    print(f"[INFO] Output file was missing; generated {target} with backtracking.")
+    return True
+
+
 def benchmark_command(args: argparse.Namespace) -> int:
     rows = benchmark_inputs(args.inputs, args.out)
     summary = summarize_benchmark(rows)
@@ -82,6 +98,8 @@ def benchmark_command(args: argparse.Namespace) -> int:
 
 def verify_command(args: argparse.Namespace) -> int:
     instance = parse_file(args.input)
+    if not ensure_output_exists(args.input, args.output):
+        return 1
     parsed_output = parse_output(Path(args.output).read_text(encoding="utf-8"), instance.size)
     if parsed_output.horizontal_constraints != instance.horizontal_constraints:
         print("[FAIL] Output horizontal inequality signs do not match the input.")

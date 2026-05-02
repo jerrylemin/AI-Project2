@@ -40,4 +40,4 @@ python main.py benchmark inputs reports/benchmark_results.csv
 - `main.py`: root entry point for UI and command-line runs
 - `src/futoshiki/`: source code
 - `inputs/`, `outputs/`: bundled test cases
-- `reports/project2_overleaf.txt`: final Overleaf source
+- `report_AI_Project2_Futoshiki_Group_2.pdf`: final report
