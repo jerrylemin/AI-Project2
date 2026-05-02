@@ -126,11 +126,11 @@ def parse_output_grid(text: str, size: int) -> list[list[int]]:
 def parse_output(text: str, size: int) -> ParsedOutput:
     """Parse the readable output board, including inequality symbols."""
 
-    lines = _meaningful_lines(text)
+    lines = [line.rstrip("\n\r") for line in text.splitlines() if not line.lstrip().startswith("#")]
     expected_lines = 2 * size - 1
     if len(lines) != expected_lines:
         raise PuzzleFormatError(
-            f"Expected {expected_lines} non-empty output lines for size {size}, got {len(lines)}."
+            f"Expected {expected_lines} output lines for size {size}, got {len(lines)}."
         )
 
     grid: list[list[int]] = []
