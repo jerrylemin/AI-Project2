@@ -1,0 +1,208 @@
+Metadata-Version: 2.4
+Name: futoshiki-logic
+Version: 0.1.0
+Summary: CSC14003 Project 2 - Futoshiki puzzles solved with logic and search techniques.
+Author: Codex
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: streamlit<2,>=1.44
+Provides-Extra: dev
+Requires-Dist: pytest<9,>=8.0; extra == "dev"
+
+# CSC14003 Project 2 - Futoshiki Logic
+
+This repository contains a complete Python implementation of the CSC14003 Project 2 Futoshiki assignment.
+
+Included:
+
+- CLI for grading-style execution
+- Streamlit UI
+- Solvers: `bruteforce`, `backtracking`, `astar`, `logic-forward`, `logic-backward`
+- Ground KB generation, CNF generation, forward chaining, backward chaining
+- 10 bundled inputs and matching outputs
+- Benchmarks, tests, README, and reports
+
+## Install
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+## Run
+
+```bash
+python -m futoshiki.cli solve --input inputs/input-01.txt --solver backtracking
+python -m futoshiki.cli solve --input inputs/input-01.txt --solver astar
+python -m futoshiki.cli solve --input inputs/input-01.txt --solver logic-fc
+python -m futoshiki.cli solve --input inputs/input-01.txt --solver logic-bc
+python -m futoshiki.cli benchmark --inputs inputs --out reports/benchmark_results.csv
+python -m futoshiki.cli verify --input inputs/input-01.txt --output outputs/output-01.txt
+python -m pytest -q
+streamlit run src/futoshiki/ui/streamlit_app.py
+```
+
+`python -m futoshiki.cli` works directly from the repository root.
+
+## Assignment Input Format
+
+The parser now matches the assignment screenshot format.
+
+Input file structure:
+
+1. First line: `N`
+2. Next `N` lines: grid rows, `N` comma-separated integers
+3. Next `N` lines: horizontal constraints, `N-1` comma-separated integers
+4. Next `N-1` lines: vertical constraints, `N` comma-separated integers
+
+Constraint encoding:
+
+- grid: `0` means empty, `1..N` means given value
+- horizontal: `1` means `<`, `-1` means `>`, `0` means no constraint
+- vertical: `1` means top `<` bottom, `-1` means top `>` bottom, `0` means no constraint
+
+Example:
+
+```text
+4
+1, 0, 0, 4
+0, 3, 4, 0
+0, 4, 1, 0
+4, 0, 0, 3
+1, 1, 1
+1, 1, -1
+1, -1, 1
+-1, 1, 1
+1, 1, 1, -1
+1, 1, -1, 1
+1, -1, 1, 1
+```
+
+## Output Format
+
+The solved output is printed as a readable board with inequality symbols preserved.
+
+Example:
+
+```text
+1 < 2 < 3 < 4
+v   v   v   ^
+2 < 3 < 4 > 1
+v   v   ^   v
+3 < 4 > 1 < 2
+v   ^   v   v
+4 > 1 < 2 < 3
+```
+
+## Project Layout
+
+```text
+futoshiki/
+src/futoshiki/...
+inputs/input-01.txt ... input-10.txt
+outputs/output-01.txt ... output-10.txt
+reports/report.md
+reports/manual_4x4_fol.md
+reports/benchmark_results.csv
+reports/benchmark_summary.md
+tests/...
+```
+
+## Solver Notes
+
+### Bruteforce
+
+- row-major empty-cell order
+- tries values `1..N`
+- local consistency checks only
+- slow baseline
+
+### Backtracking
+
+- main reference solver
+- MRV
+- degree heuristic
+- forward checking
+- AC-3
+
+### A*
+
+- state is propagated domains, not only a raw grid
+- `g(s)` is the number of branching decisions
+- `h0(s)=0`
+- `hweak(s)=0 or 1`
+- `hmain(s)` is the number of ambiguous connected constraint components after AC-3
+
+Why `hmain` is admissible:
+
+- after AC-3 reaches a fixed point, each still-ambiguous connected component has no determined value for at least one cell
+- one action assigns one cell, and disconnected binary-constraint components do not propagate into each other
+- therefore each ambiguous component needs at least one future decision under this state/action definition
+
+### Logic Forward
+
+- real ground Horn KB
+- real agenda-based forward chaining
+- derives `Val`, `NotVal`, `Possible`, `Assigned`
+- clearly marked fallback to search if inference alone is incomplete
+
+### Logic Backward
+
+- real SLD-style backward chaining engine
+- solver uses SLD queries over a propagated domain snapshot, then clearly separates fallback search
+- clearly marked fallback to search if inference alone is incomplete
+
+## Verify and CNF
+
+- `src/futoshiki/logic/cnf.py` contains both a symbolic CNF pipeline and a direct propositional encoder
+- `verify` checks output inequality signs, strict solution validation, and CNF satisfaction
+- SAT/CNF is verification-only, not the main solver
+
+## UI
+
+The Streamlit app provides:
+
+- bundled input selection or file upload
+- text editor in assignment input format
+- board rendering with `<`, `>`, `^`, `v`
+- solver selection
+- run, run all, validate, reset, export output
+- metrics and logs
+- benchmark tab
+- logic query panel
+- CNF statistics panel
+- theory tab
+
+## Benchmark
+
+Files:
+
+- [reports/benchmark_results.csv](/C:/MEGA/co%20so%20ttnt/Project%202/reports/benchmark_results.csv)
+- [reports/benchmark_summary.md](/C:/MEGA/co%20so%20ttnt/Project%202/reports/benchmark_summary.md)
+
+Current bundled benchmark summary:
+
+- `backtracking` is the best overall reference solver in this codebase
+- `logic-forward` is the slowest because the grounded Horn rule base is large
+- `logic-backward` is faster than `logic-forward`
+- `astar-main` and `astar-h0` both solve the full bundled dataset
+
+## Tests
+
+```bash
+python -m pytest -q
+```
+
+Current status: `20 passed`
+
+## Academic Honesty
+
+- `logic-forward` and `logic-backward` are not fake labels for a CSP solver
+- both logic solvers keep their intended inference behavior
+- when they need fallback search, that is stated explicitly in code, logs, README, and report
+- `verify_sat.py` is not used as the main solver
+
+## Documents
+
+- [reports/report.md](/C:/MEGA/co%20so%20ttnt/Project%202/reports/report.md)
+- [reports/manual_4x4_fol.md](/C:/MEGA/co%20so%20ttnt/Project%202/reports/manual_4x4_fol.md)
